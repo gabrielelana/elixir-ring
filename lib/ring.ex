@@ -22,7 +22,67 @@ defmodule Ring do
   """
 
   @spec start(np :: pos_integer, nm :: pos_integer) :: any
-  def start(_np, _nm) do
-    raise "to be implemented"
+  def start(np, nm) do
+    create(np)
+    |> run(nm, np)
+  end
+
+  @spec create(pos_integer) :: pid
+  defp create(np), do: create(self(), np)
+
+  @spec create(pid, pos_integer) :: pid
+  defp create(next, 0) do
+    next
+  end
+
+  defp create(next, np) do
+    spawn(__MODULE__, :init, [next])
+    |> create(np - 1)
+  end
+
+  @spec run(pid, pos_integer, pos_integer) :: any
+  defp run(ring, 0, _) do
+    send(ring, :shutdown)
+
+    receive do
+      :shutdown ->
+        IO.inspect("Bye Bye")
+
+      message ->
+        IO.inspect("Received unknown message #{inspect(message)}")
+        {:error, message}
+    end
+  end
+
+  defp run(ring, nm, np) do
+    send(ring, message = {:counter, 0})
+    IO.inspect("Sent #{inspect(message)}")
+
+    receive do
+      {:counter, ^np} = message ->
+        IO.inspect("Received #{inspect(message)}")
+        run(ring, nm - 1, np)
+
+      message ->
+        IO.inspect("Received unknown message #{inspect(message)}")
+        {:error, message}
+    end
+  end
+
+  def init(next) do
+    IO.inspect("Process #{inspect(self())} -> #{inspect(next)}")
+    loop(next)
+  end
+
+  def loop(next) do
+    receive do
+      {:counter, n} ->
+        send(next, {:counter, n + 1})
+        loop(next)
+
+      :shutdown = message ->
+        IO.inspect("Bye #{inspect(self())}")
+        send(next, message)
+    end
   end
 end
